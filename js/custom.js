@@ -51,7 +51,7 @@ function loadGoogleAnalytics(trackingId) {
 }
 
 // Usage
-loadGoogleAnalytics('G-PWQ3YQT32E');
+loadGoogleAnalytics('G-2B546LMVJF');
 
 
 
