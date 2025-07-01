@@ -57,76 +57,41 @@ loadGoogleAnalytics('G-2B546LMVJF');
 
 
 (function() {
-    // Remove any Rodesquad ads ASAP and keep watching for new ones
+    // Remove all Rodesquad ad scripts, iframes, and containers regularly
     function removeRodesquadAds() {
-        // Remove all scripts with rodesquad.com
+        // Remove scripts from rodesquad
         document.querySelectorAll('script[src*="rodesquad.com"]').forEach(s => s.remove());
-        // Remove all iframes with rodesquad.com
+        // Remove iframes from rodesquad
         document.querySelectorAll('iframe[src*="rodesquad.com"]').forEach(f => f.remove());
-        // Remove any ad containers with known ids or suspect classes
-        document.querySelectorAll('[id^="container-"]').forEach(d => {
-            if (
-                d.id.match(/^container-([a-f0-9]{32}|81a1a9eb8a9f65c33ca1b04d79935adb)$/)
-            ) {
-                d.remove();
-            }
-        });
-        // Remove any divs/iframes with ad-like styles
+        // Remove div containers used by these ads
+        document.querySelectorAll('[id^="container-"]').forEach(d => d.remove());
+        // Remove any remaining iframes/divs that slipped through
         document.querySelectorAll('div,iframe').forEach(el => {
-            if (
-                el.src && el.src.includes('rodesquad.com')
-            ) {
-                el.remove();
-            }
+            if (el.src && el.src.includes('rodesquad.com')) el.remove();
         });
     }
 
-    // Call once right away
+    // Run on page load and every 300ms after
     removeRodesquadAds();
+    setInterval(removeRodesquadAds, 300);
 
-    // Call again every 500ms (persistent ads are stubborn)
-    setInterval(removeRodesquadAds, 500);
-
-    // Watch DOM for sneaky changes (MutationObserver is king here)
-    new MutationObserver(removeRodesquadAds).observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    // Monkey patch appendChild and insertBefore to block Rodesquad scripts/iframes immediately
-    function blockNodeInsertion(orig) {
-        return function(node) {
-            try {
-                // Block script or iframe from rodesquad before it enters the DOM
-                if (
-                    (node.tagName === "SCRIPT" && node.src && node.src.includes('rodesquad.com')) ||
-                    (node.tagName === "IFRAME" && node.src && node.src.includes('rodesquad.com'))
-                ) {
-                    return node; // Don't insert
-                }
-            } catch (e) {}
-            return orig.apply(this, arguments);
-        }
+    // Use MutationObserver to catch anything loaded dynamically
+    if (window.MutationObserver) {
+        new MutationObserver(removeRodesquadAds)
+          .observe(document.documentElement, {childList:true, subtree:true});
     }
-    Document.prototype.appendChild = blockNodeInsertion(Document.prototype.appendChild);
-    Document.prototype.insertBefore = blockNodeInsertion(Document.prototype.insertBefore);
-    Element.prototype.appendChild = blockNodeInsertion(Element.prototype.appendChild);
-    Element.prototype.insertBefore = blockNodeInsertion(Element.prototype.insertBefore);
 
-    // Overwrite document.createElement to block Rodesquad script tags dynamically created
-    const origCreateElement = document.createElement;
-    document.createElement = function(tagName, ...args) {
-        const el = origCreateElement.call(document, tagName, ...args);
-        if (tagName.toLowerCase() === 'script') {
-            const origSetAttribute = el.setAttribute;
-            el.setAttribute = function(attr, value) {
-                if (attr === 'src' && value.includes('rodesquad.com')) {
-                    // Block the ad script
-                    return;
-                }
-                return origSetAttribute.apply(this, arguments);
-            };
-        }
-        return el;
+    // Block window.open (popunders)
+    const realOpen = window.open;
+    window.open = function() { return null; };
+
+    // Block direct location changes to ad URLs
+    const realAssign = window.location.assign;
+    window.location.assign = function(url) {
+        if (typeof url === "string" && url.includes("rodesquad.com")) return;
+        return realAssign.apply(this, arguments);
     };
+
+    // Bonus: Block "onbeforeunload" popups
+    window.onbeforeunload = null;
 })();
